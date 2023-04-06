@@ -37,7 +37,7 @@ public class Replica extends UnicastRemoteObject implements ReplicaInterface {
         this.coordinator = coordinator;
     }
 
-    public static class ReplicaService extends ServiceGrpc.ServiceImplBase {
+    public class ReplicaService extends ServiceGrpc.ServiceImplBase {
         private final Lock lock;
         KeyValue kvs;
         ReplicaService() {

@@ -14,9 +14,10 @@ service Service {
   rpc prepare(Request) returns(Status);
   rpc commit(Request) returns(Response);
   rpc abort(Request) returns(Status);
+  rpc isAlive(Ping) returns(Status);
 
   // Replica -> Coordinator
-  rpc addReplica(ReplicaServer) returns(Response);
+  rpc addReplica(ReplicaServer) returns(Status);
   rpc startTransaction(Request) returns(Response);
 }
 
@@ -38,4 +39,8 @@ message ReplicaServer {
 
 message Status {
   bool success = 1;
+}
+
+message Ping {
+
 }

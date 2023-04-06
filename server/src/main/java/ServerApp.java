@@ -25,11 +25,13 @@ public class ServerApp {
         if (args[0].equals("c")) {
             try {
                 int port = Integer.parseInt(args[1]);
-                Registry registry = LocateRegistry.createRegistry(port);
+                //Registry registry = LocateRegistry.createRegistry(port);
+                //
+                //Coordinator coordinator = new Coordinator();
+                //CoordinatorInterface stub = (CoordinatorInterface) UnicastRemoteObject.exportObject(coordinator, 0);
+                //registry.bind("RemoteCoordinator", stub);
 
-                Coordinator coordinator = new Coordinator();
-                CoordinatorInterface stub = (CoordinatorInterface) UnicastRemoteObject.exportObject(coordinator, 0);
-                registry.bind("RemoteCoordinator", stub);
+
 
             } catch (Exception e) {
                 ServerLogger.logError("Coordinator exception: " + e);
