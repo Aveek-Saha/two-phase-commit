@@ -1,3 +1,8 @@
+import com.example.server.Request;
+import com.example.server.Response;
+import com.example.server.ServiceGrpc;
+import com.example.server.Status;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -14,6 +19,8 @@ import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import io.grpc.stub.StreamObserver;
+
 public class Replica extends UnicastRemoteObject implements ReplicaInterface {
 
     private final Lock lock;
@@ -28,6 +35,120 @@ public class Replica extends UnicastRemoteObject implements ReplicaInterface {
         kvs = new KeyValue();
         lock = new ReentrantLock();
         this.coordinator = coordinator;
+    }
+
+    public static class ReplicaService extends ServiceGrpc.ServiceImplBase {
+        private final Lock lock;
+        KeyValue kvs;
+        ReplicaService() {
+            this.kvs = new KeyValue();
+            this.lock = new ReentrantLock();
+        }
+
+        @Override
+        public void prepare (Request request, StreamObserver<Status> responseObserver) {
+            boolean success = false;
+            if (this.lock.tryLock()) {
+                ServerLogger.logInfo("Acquired lock for prepare");
+                success = true;
+            } else {
+                ServerLogger.logWarning("Could not acquire lock for prepare");
+            }
+            responseObserver.onNext(Status.newBuilder().setSuccess(success).build());
+
+        }
+
+        @Override
+        public void commit(Request request, StreamObserver<Response> responseObserver) {
+            try {
+                ServerLogger.logInfo("Received request from coordinator to commit: " + request.toString());
+
+                Response response;
+                String method = request.getOperation();
+                // Twp phase commit only required for put and delete since they modify the KV store
+                switch (method.toUpperCase()) {
+                    case "PUT":
+                        response = handlePut(request);
+                        break;
+                    case "DEL":
+                        response = handleDelete(request);
+                        break;
+                    default:
+                        response = Response.newBuilder().setStatus("400").setMsg("Invalid commit request").build();
+                        break;
+                }
+                ServerLogger.logInfo("Sent response to coordinator for commit: " + request.toString());
+                responseObserver.onNext(response);
+            } finally {
+                try {
+                    this.lock.unlock();
+                    ServerLogger.logInfo("Unlocked after commit");
+                } catch (IllegalMonitorStateException e) {
+                    ServerLogger.logWarning("Could not unlock after commit: " + e.getMessage());
+                }
+            }
+        }
+
+
+        @Override
+        public void abort(Request request, StreamObserver<Status> responseObserver) {
+            boolean success = false;
+            try {
+                this.lock.unlock();
+                ServerLogger.logInfo("Unlocked during abort");
+                success = true;
+            } catch (IllegalMonitorStateException e) {
+                ServerLogger.logWarning("Could not unlock during abort: " + e.getMessage());
+            }
+            responseObserver.onNext(Status.newBuilder().setSuccess(success).build());
+        }
+
+        private Response handlePut(Request data) {
+            this.lock.lock();
+            try {
+                String key = data.getKey();
+                String value = data.getValue();
+                String message;
+                String status;
+
+                // Return a success if the key was successfully put into the KV store
+                if (kvs.put(key, value)) {
+                    ServerLogger.log("Successful PUT on key '" + key + "' with value '" + value + "'");
+                    message = "Put key '" + key + "' with value '" + value + "'";
+                    status = "200";
+                } else {
+                    ServerLogger.logError("Could not PUT key '" + key + "'");
+                    message = "PUT FAILED for key '" + key + "' with value '" + value + "'";
+                    status = "400";
+                }
+                return Response.newBuilder().setStatus(status).setMsg(message).build();
+            } finally {
+                this.lock.unlock();
+            }
+        }
+
+        private Response handleDelete(Request data) {
+            this.lock.lock();
+            try {
+                String key = data.getKey();
+                String message;
+                String status;
+
+                // If the key exists and was deleted successfully return a success
+                if (kvs.delete(key)) {
+                    ServerLogger.log("Successful DEL on key '" + key + "'");
+                    message = "Deleted key '" + key + "'";
+                    status = "200";
+                } else {
+                    ServerLogger.logError("Could not DEL key '" + key + "'");
+                    message = "DEL FAILED for key '" + key + "'";
+                    status = "400";
+                }
+                return Response.newBuilder().setStatus(status).setMsg(message).build();
+            } finally {
+                this.lock.unlock();
+            }
+        }
     }
 
 

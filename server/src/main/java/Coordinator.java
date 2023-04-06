@@ -15,6 +15,10 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+import com.example.server.*;
+import io.grpc.*;
+import io.grpc.stub.StreamObserver;
+
 /**
  * A class representing the coordinator for the two phase commit protocol
  */
@@ -39,6 +43,15 @@ public class Coordinator implements CoordinatorInterface {
         this.scheduler = Executors.newScheduledThreadPool(5);
         this.heartbeats = new ConcurrentHashMap<>();
         this.replicaNames = new ConcurrentHashMap<>();
+    }
+
+    private static class CoordinatorService extends ServiceGrpc.ServiceImplBase {
+        //private final
+
+        //@Override
+        //public void prepare (Request request, StreamObserver<Response> responseObserver) {
+        //
+        //}
     }
 
     /**

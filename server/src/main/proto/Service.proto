@@ -1,0 +1,41 @@
+syntax = "proto3";
+import "google/protobuf/empty.proto";
+package server;
+
+option java_multiple_files = true;
+option java_package = "com.example.server";
+option java_outer_classname = "ServiceProto";
+
+service Service {
+  // Client -> Replica
+  rpc generateResponse(Request) returns (Response);
+
+  // Coordinator -> Replica
+  rpc prepare(Request) returns(Status);
+  rpc commit(Request) returns(Response);
+  rpc abort(Request) returns(Status);
+
+  // Replica -> Coordinator
+  rpc addReplica(ReplicaServer) returns(Response);
+  rpc startTransaction(Request) returns(Response);
+}
+
+message Request {
+  string operation = 1;
+  string key = 2;
+  optional string value = 3;
+}
+
+message Response {
+  string status = 1;
+  optional string msg = 2;
+}
+
+message ReplicaServer {
+  string hostname = 1;
+  int32 port = 2;
+}
+
+message Status {
+  bool success = 1;
+}
