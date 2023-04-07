@@ -29,14 +29,14 @@ public class Coordinator {
      * A constructor for the coordinator that initializes the list of replicas and other variables
      * required for managing those replicas
      */
-    public Coordinator(int port) throws IOException, InterruptedException {
-        this.start(port);
-        this.blockUntilShutdown();
-    }
+    //public Coordinator() throws IOException, InterruptedException {
+    //    //this.start(port);
+    //    //this.blockUntilShutdown();
+    //}
 
     private Server server;
 
-    private void start(int port) throws IOException {
+    public void start(int port) throws IOException {
         server = Grpc.newServerBuilderForPort(port, InsecureServerCredentials.create())
                 .addService(new CoordinatorService())
                 .build()
@@ -66,7 +66,7 @@ public class Coordinator {
     /**
      * Await termination on the main thread since the grpc library uses daemon threads.
      */
-    private void blockUntilShutdown() throws InterruptedException {
+    public void blockUntilShutdown() throws InterruptedException {
         if (server != null) {
             server.awaitTermination();
         }

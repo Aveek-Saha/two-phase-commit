@@ -1,6 +1,4 @@
-import java.rmi.registry.LocateRegistry;
-import java.rmi.registry.Registry;
-import java.rmi.server.UnicastRemoteObject;
+
 
 /**
  * The main entrypoint for the server
@@ -25,13 +23,10 @@ public class ServerApp {
         if (args[0].equals("c")) {
             try {
                 int port = Integer.parseInt(args[1]);
-                //Registry registry = LocateRegistry.createRegistry(port);
-                //
-                //Coordinator coordinator = new Coordinator();
-                //CoordinatorInterface stub = (CoordinatorInterface) UnicastRemoteObject.exportObject(coordinator, 0);
-                //registry.bind("RemoteCoordinator", stub);
 
-
+                Coordinator coordinator = new Coordinator();
+                coordinator.start(port);
+                coordinator.blockUntilShutdown();
 
             } catch (Exception e) {
                 ServerLogger.logError("Coordinator exception: " + e);
@@ -41,18 +36,23 @@ public class ServerApp {
                 String coordinatorHostname = args[0];
                 int coordinatorPort = Integer.parseInt(args[1]);
                 int serverPort = Integer.parseInt(args[2]);
-                Registry registry = LocateRegistry.getRegistry(coordinatorHostname, coordinatorPort);
-                CoordinatorInterface coordinator = (CoordinatorInterface) registry.lookup("RemoteCoordinator");
+                //Registry registry = LocateRegistry.getRegistry(coordinatorHostname, coordinatorPort);
+                //CoordinatorInterface coordinator = (CoordinatorInterface) registry.lookup("RemoteCoordinator");
+                //
+                //String serverName = "Server-" + serverPort;
+                //Replica replica = new Replica(coordinator);
+                //coordinator.addReplica(replica);
+                //ServerLogger.log("Connected to coordinator");
+                //
+                //registry = LocateRegistry.createRegistry(serverPort);
+                //registry.bind(serverName, replica);
+                //
+                //ServerLogger.log("Server ready");
 
-                String serverName = "Server-" + serverPort;
-                Replica replica = new Replica(coordinator);
-                coordinator.addReplica(replica);
-                ServerLogger.log("Connected to coordinator");
-
-                registry = LocateRegistry.createRegistry(serverPort);
-                registry.bind(serverName, replica);
-
-                ServerLogger.log("Server ready");
+                String coordinator = coordinatorHostname + ":" + coordinatorPort;
+                Replica replica = new Replica();
+                replica.start(coordinator, serverPort);
+                replica.blockUntilShutdown();
 
             } catch (Exception e) {
                 ServerLogger.logError("Server exception: " + e);

@@ -1,10 +1,12 @@
 import com.example.server.Ping;
+import com.example.server.ReplicaServer;
 import com.example.server.Request;
 import com.example.server.Response;
 import com.example.server.ServiceGrpc;
 import com.example.server.Status;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -18,21 +20,36 @@ import io.grpc.stub.StreamObserver;
 
 public class Replica {
     private Server server;
+    private ManagedChannel coordinatorChannel;
+    private ServiceGrpc.ServiceBlockingStub coordinatorStub;
 
     /**
      * Initialises the server with a key value store and a lock
      */
-    public Replica(String coordinator, int port) throws InterruptedException, IOException {
-        this.start(coordinator, port);
-        this.blockUntilShutdown();
-    }
+    //public Replica(String coordinator, int port) throws InterruptedException, IOException {
+    //    this.start(coordinator, port);
+    //    this.blockUntilShutdown();
+    //}
 
-    private void start(String coordinator, int port) throws IOException {
+    public void start(String coordinator, int port) throws IOException {
         server = Grpc.newServerBuilderForPort(port, InsecureServerCredentials.create())
                 .addService(new ReplicaService(coordinator))
                 .build()
                 .start();
         ServerLogger.log("Server started, listening on " + port);
+
+        coordinatorChannel = Grpc.newChannelBuilder(coordinator,
+                InsecureChannelCredentials.create()).build();
+        coordinatorStub = ServiceGrpc.newBlockingStub(coordinatorChannel);
+
+        ReplicaServer replicaServer = ReplicaServer.newBuilder().setPort(port).setHostname(
+                InetAddress.getLocalHost().getHostName()).build();
+        Status response = coordinatorStub.addReplica(replicaServer);
+        if (response.getSuccess())
+            ServerLogger.log("Connected to coordinator");
+        else
+            ServerLogger.logError("Failed to connect to coordinator");
+
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override
             public void run() {
@@ -57,7 +74,7 @@ public class Replica {
     /**
      * Await termination on the main thread since the grpc library uses daemon threads.
      */
-    private void blockUntilShutdown() throws InterruptedException {
+    public void blockUntilShutdown() throws InterruptedException {
         if (server != null) {
             server.awaitTermination();
         }
@@ -178,9 +195,7 @@ public class Replica {
                     break;
                 case "PUT":
                 case "DEL":
-                    ManagedChannel channel = Grpc.newChannelBuilder(this.coordinator,
-                            InsecureChannelCredentials.create()).build();
-                    response = ServiceGrpc.newBlockingStub(channel).startTransaction(request);
+                    response = coordinatorStub.startTransaction(request);
                     break;
                 default:
                     response = Response.newBuilder().setMsg("Invalid method. Valid methods are " +

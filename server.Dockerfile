@@ -1,5 +1,5 @@
 # Build stage
-FROM maven:3.9.6-eclipse-temurin-11-alpine AS build
+FROM maven:3.9.6-eclipse-temurin-11 AS build
 COPY . /app
 WORKDIR /app/server
 RUN mvn clean install package
