@@ -102,6 +102,44 @@ public class Coordinator {
             ServerLogger.log("Added new replica: " + clientName);
             this.startHeartbeat(replica);
             ServerLogger.logInfo("Started heartbeat on replica: " + clientName);
+
+            responseObserver.onCompleted();
+        }
+
+        /**
+         * Starts a transaction using the Two phase commit protocol when called by a replica
+         *
+         * @param request the request sent by the replica in string form
+         * @param responseObserver the result of the transaction
+         */
+        @Override
+        public void startTransaction(Request request, StreamObserver<Response> responseObserver) {
+            Response response;
+            String message;
+
+            if (this.prepare(request)) {
+                Response commitResult = this.commit(request);
+                if (commitResult != null) {
+                    ServerLogger.log("Successfully committed to all replicas");
+                    responseObserver.onNext(commitResult);
+                    return;
+                } else {
+                    message = "Operation failed. Could not commit transaction to all replicas";
+                    ServerLogger.logError("Failed to commit to all replicas");
+                }
+            } else {
+                if (this.abort(request)) {
+                    message = "Operation failed. Transaction successfully aborted";
+                    ServerLogger.log("Successfully aborted transaction");
+                } else {
+                    message = "Operation failed. Transaction could not be aborted";
+                    ServerLogger.logError("Failed to abort transaction");
+                }
+            }
+
+            response = Response.newBuilder().setMsg(message).setStatus("400").build();
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
         }
 
         /**
@@ -159,41 +197,6 @@ public class Coordinator {
                 ServerLogger.log(
                         "Removed unresponsive replica '" + clientName + "' and stopped " + "heartbeat");
             }
-        }
-
-
-        /**
-         * Starts a transaction using the Two phase commit protocol when called by a replica
-         *
-         * @param request the request sent by the replica in string form
-         * @return the result of the transaction as a string
-         * @throws RemoteException If there is an error during the remote call
-         */
-        public Response startTransaction(Request request) throws RemoteException {
-            Response response;
-            String message;
-
-            if (this.prepare(request)) {
-                Response commitResult = this.commit(request);
-                if (commitResult != null) {
-                    ServerLogger.log("Successfully committed to all replicas");
-                    return commitResult;
-                } else {
-                    message = "Operation failed. Could not commit transaction to all replicas";
-                    ServerLogger.logError("Failed to commit to all replicas");
-                }
-            } else {
-                if (this.abort(request)) {
-                    message = "Operation failed. Transaction successfully aborted";
-                    ServerLogger.log("Successfully aborted transaction");
-                } else {
-                    message = "Operation failed. Transaction could not be aborted";
-                    ServerLogger.logError("Failed to abort transaction");
-                }
-            }
-
-            response = Response.newBuilder().setMsg(message).setStatus("400").build();
-            return response;
         }
 
         /**
