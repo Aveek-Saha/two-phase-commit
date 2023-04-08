@@ -36,18 +36,6 @@ public class ServerApp {
                 String coordinatorHostname = args[0];
                 int coordinatorPort = Integer.parseInt(args[1]);
                 int serverPort = Integer.parseInt(args[2]);
-                //Registry registry = LocateRegistry.getRegistry(coordinatorHostname, coordinatorPort);
-                //CoordinatorInterface coordinator = (CoordinatorInterface) registry.lookup("RemoteCoordinator");
-                //
-                //String serverName = "Server-" + serverPort;
-                //Replica replica = new Replica(coordinator);
-                //coordinator.addReplica(replica);
-                //ServerLogger.log("Connected to coordinator");
-                //
-                //registry = LocateRegistry.createRegistry(serverPort);
-                //registry.bind(serverName, replica);
-                //
-                //ServerLogger.log("Server ready");
 
                 String coordinator = coordinatorHostname + ":" + coordinatorPort;
                 Replica replica = new Replica();

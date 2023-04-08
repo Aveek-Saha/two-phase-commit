@@ -43,7 +43,7 @@ public class Replica {
         coordinatorStub = ServiceGrpc.newBlockingStub(coordinatorChannel);
 
         ReplicaServer replicaServer = ReplicaServer.newBuilder().setPort(port).setHostname(
-                InetAddress.getLocalHost().getHostName()).build();
+                InetAddress.getLocalHost().getHostAddress()).build();
         Status response = coordinatorStub.addReplica(replicaServer);
         if (response.getSuccess())
             ServerLogger.log("Connected to coordinator");
@@ -54,13 +54,13 @@ public class Replica {
             @Override
             public void run() {
                 // Use stderr here since the logger may have been reset by its JVM shutdown hook.
-                System.err.println("*** shutting down gRPC server since JVM is shutting down");
+                ServerLogger.logError("Shutting down gRPC server since JVM is shutting down");
                 try {
                     Replica.this.stop();
                 } catch (InterruptedException e) {
-                    e.printStackTrace(System.err);
+                    ServerLogger.logError("Shutting down gRPC server since JVM is shutting down");
                 }
-                System.err.println("*** server shut down");
+                ServerLogger.logError("Server shut down");
             }
         });
     }
