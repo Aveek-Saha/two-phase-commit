@@ -20,35 +20,26 @@ import io.grpc.stub.StreamObserver;
 
 public class Replica {
     private Server server;
-    private ManagedChannel coordinatorChannel;
     private ServiceGrpc.ServiceBlockingStub coordinatorStub;
 
     /**
      * Initialises the server with a key value store and a lock
      */
-    //public Replica(String coordinator, int port) throws InterruptedException, IOException {
-    //    this.start(coordinator, port);
-    //    this.blockUntilShutdown();
-    //}
 
     public void start(String coordinator, int port) throws IOException {
         server = Grpc.newServerBuilderForPort(port, InsecureServerCredentials.create())
-                .addService(new ReplicaService(coordinator))
-                .build()
-                .start();
+                .addService(new ReplicaService(coordinator)).build().start();
         ServerLogger.log("Server started, listening on " + port);
 
-        coordinatorChannel = Grpc.newChannelBuilder(coordinator,
-                InsecureChannelCredentials.create()).build();
+        ManagedChannel coordinatorChannel =
+                Grpc.newChannelBuilder(coordinator, InsecureChannelCredentials.create()).build();
         coordinatorStub = ServiceGrpc.newBlockingStub(coordinatorChannel);
 
-        ReplicaServer replicaServer = ReplicaServer.newBuilder().setPort(port).setHostname(
-                InetAddress.getLocalHost().getHostAddress()).build();
+        ReplicaServer replicaServer = ReplicaServer.newBuilder().setPort(port)
+                .setHostname(InetAddress.getLocalHost().getHostAddress()).build();
         Status response = coordinatorStub.addReplica(replicaServer);
-        if (response.getSuccess())
-            ServerLogger.log("Connected to coordinator");
-        else
-            ServerLogger.logError("Failed to connect to coordinator");
+        if (response.getSuccess()) ServerLogger.log("Connected to coordinator");
+        else ServerLogger.logError("Failed to connect to coordinator");
 
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override
@@ -84,6 +75,7 @@ public class Replica {
         private final Lock lock;
         KeyValue kvs;
         String coordinator;
+
         ReplicaService(String coordinator) {
             kvs = new KeyValue();
             lock = new ReentrantLock();
@@ -96,7 +88,7 @@ public class Replica {
          * @param request the request to commit
          */
         @Override
-        public void prepare (Request request, StreamObserver<Status> responseObserver) {
+        public void prepare(Request request, StreamObserver<Status> responseObserver) {
             boolean success = false;
             if (this.lock.tryLock()) {
                 ServerLogger.logInfo("Acquired lock for prepare");
@@ -111,13 +103,14 @@ public class Replica {
         /**
          * Called by the coordinator when the server needs to commit a transaction
          *
-         * @param request the request to commit
+         * @param request          the request to commit
          * @param responseObserver the response observer
          */
         @Override
         public void commit(Request request, StreamObserver<Response> responseObserver) {
             try {
-                ServerLogger.logInfo("Received request from coordinator to commit: " + request.toString());
+                ServerLogger.logInfo(
+                        "Received request from coordinator to commit: " + request.toString());
 
                 Response response;
                 String method = request.getOperation();
@@ -130,10 +123,12 @@ public class Replica {
                         response = handleDelete(request);
                         break;
                     default:
-                        response = Response.newBuilder().setStatus("400").setMsg("Invalid commit request").build();
+                        response = Response.newBuilder().setStatus("400")
+                                .setMsg("Invalid commit request").build();
                         break;
                 }
-                ServerLogger.logInfo("Sent response to coordinator for commit: " + request.toString());
+                ServerLogger.logInfo(
+                        "Sent response to coordinator for commit: " + request);
                 responseObserver.onNext(response);
             } finally {
                 try {
@@ -164,7 +159,7 @@ public class Replica {
         /**
          * Called by the coordinator to check if the server is alive
          *
-         * @param ping pings the server
+         * @param ping             pings the server
          * @param responseObserver true if the server is alive
          */
         @Override
@@ -175,7 +170,7 @@ public class Replica {
         /**
          * Takes in an input request from the client and returns the appropriate response
          *
-         * @param request The formatted request as a string
+         * @param request          The formatted request as a string
          * @param responseObserver The response to be sent to the client
          */
         @Override
@@ -198,8 +193,9 @@ public class Replica {
                     response = coordinatorStub.startTransaction(request);
                     break;
                 default:
-                    response = Response.newBuilder().setMsg("Invalid method. Valid methods are " +
-                            "GET, PUT and DEL").setStatus("400").build();
+                    response = Response.newBuilder()
+                            .setMsg("Invalid method. Valid methods are " + "GET, PUT and DEL")
+                            .setStatus("400").build();
                     break;
             }
             ServerLogger.log("Sent response to " + clientName + ": " + response);
@@ -248,7 +244,8 @@ public class Replica {
 
                 // Return a success if the key was successfully put into the KV store
                 if (kvs.put(key, value)) {
-                    ServerLogger.log("Successful PUT on key '" + key + "' with value '" + value + "'");
+                    ServerLogger.log(
+                            "Successful PUT on key '" + key + "' with value '" + value + "'");
                     message = "Put key '" + key + "' with value '" + value + "'";
                     status = "200";
                 } else {

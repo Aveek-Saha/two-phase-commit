@@ -1,5 +1,3 @@
-
-
 /**
  * The main entrypoint for the server
  */

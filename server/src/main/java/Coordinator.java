@@ -1,7 +1,11 @@
-import org.json.JSONObject;
+import com.example.server.Ping;
+import com.example.server.ReplicaServer;
+import com.example.server.Request;
+import com.example.server.Response;
+import com.example.server.ServiceGrpc;
+import com.example.server.Status;
 
 import java.io.IOException;
-import java.rmi.RemoteException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -13,10 +17,10 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-import com.example.server.*;
-import com.example.server.Status;
-
-import io.grpc.*;
+import io.grpc.Grpc;
+import io.grpc.InsecureChannelCredentials;
+import io.grpc.InsecureServerCredentials;
+import io.grpc.ManagedChannel;
 import io.grpc.Server;
 import io.grpc.stub.StreamObserver;
 
@@ -38,9 +42,7 @@ public class Coordinator {
 
     public void start(int port) throws IOException {
         server = Grpc.newServerBuilderForPort(port, InsecureServerCredentials.create())
-                .addService(new CoordinatorService())
-                .build()
-                .start();
+                .addService(new CoordinatorService()).build().start();
         ServerLogger.log("Server started, listening on " + port);
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override
@@ -72,6 +74,12 @@ public class Coordinator {
         }
     }
 
+    public String getReplica(ReplicaServer replica) {
+        String replicaHost = replica.getHostname();
+        int replicaPort = replica.getPort();
+        return replicaHost + replicaPort;
+    }
+
     private class CoordinatorService extends ServiceGrpc.ServiceImplBase {
         private final List<ReplicaServer> replicas;
         private final ExecutorService executor;
@@ -82,7 +90,7 @@ public class Coordinator {
         private final long initialDelayMillis = 1000; // Initial delay in milliseconds
         private final long HEARTBEAT_TIMEOUT = 3000; // Maximum delay in milliseconds
 
-        CoordinatorService () {
+        CoordinatorService() {
             this.replicas = new ArrayList<>();
             this.executor = Executors.newCachedThreadPool();
             this.scheduler = Executors.newScheduledThreadPool(5);
@@ -90,12 +98,13 @@ public class Coordinator {
         }
 
         /**
-         * Adds a replica to the list of available replicas and adds the replica name to the name list
+         * Adds a replica to the list of available replicas and adds the replica name to the name
+         * list
          *
          * @param replica the replica to add to the replica list
          */
         @Override
-        public void addReplica (ReplicaServer replica, StreamObserver<Status> responseObserver) {
+        public void addReplica(ReplicaServer replica, StreamObserver<Status> responseObserver) {
             this.replicas.add(replica);
             String clientName = replica.getHostname();
 
@@ -110,7 +119,7 @@ public class Coordinator {
         /**
          * Starts a transaction using the Two phase commit protocol when called by a replica
          *
-         * @param request the request sent by the replica in string form
+         * @param request          the request sent by the replica in string form
          * @param responseObserver the result of the transaction
          */
         @Override
@@ -161,11 +170,13 @@ public class Coordinator {
                         if (res.getSuccess()) {
                             return;
                         } else {
-                            ServerLogger.logWarning("Replica '" + replicaHost + "' is not responding" +
-                                    ". Retrying attempt " + attempt);
+                            ServerLogger.logWarning(
+                                    "Replica '" + replicaHost + "' is not responding" +
+                                            ". Retrying attempt " + attempt);
                         }
                         // Exponential backoff
-                        long delay = Math.min(initialDelayMillis * (1 << attempt), HEARTBEAT_TIMEOUT);
+                        long delay =
+                                Math.min(initialDelayMillis * (1 << attempt), HEARTBEAT_TIMEOUT);
                         Thread.sleep(delay);
                     } catch (Exception e) {
                         ServerLogger.logWarning(
@@ -195,8 +206,8 @@ public class Coordinator {
                 this.replicas.remove(replica);
                 String clientName = replica.getHostname();
                 this.scheduler.schedule(() -> future.cancel(true), 0, TimeUnit.MILLISECONDS);
-                ServerLogger.log(
-                        "Removed unresponsive replica '" + clientName + "' and stopped " + "heartbeat");
+                ServerLogger.log("Removed unresponsive replica '" + clientName + "' and stopped " +
+                        "heartbeat");
             }
         }
 
@@ -343,11 +354,5 @@ public class Coordinator {
 
             return true;
         }
-    }
-
-    public String getReplica(ReplicaServer replica) {
-        String replicaHost = replica.getHostname();
-        int replicaPort = replica.getPort();
-        return replicaHost + replicaPort;
     }
 }
