@@ -1,8 +1,5 @@
-# PROJECT_NETWORK='project-net'
-# SERVER_CONTAINER='server-con'
-
-PROJECT_NETWORK='project3_default'
-SERVER_CONTAINER='project3-server3-1'
+PROJECT_NETWORK='tpc_default'
+SERVER_CONTAINER='tpc-server-2'
 CLIENT_IMAGE='client-img'
 CLIENT_CONTAINER='client-con'
 

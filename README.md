@@ -1,14 +1,10 @@
-# Project 2
+# Two Phase commit
 
-There are two folders `client` and `server` containing the client and server respectively. These are two separate Java programs and need to be compiled separately
+This project includes a `client` and `server` folder containing the client and server respectively.
 
 ## Running instructions
 
-The project uses `maven` so to build it on your system you will need maven installed. If you use IntelliJ it should be already installed and you can install the package from the GUI.
-
-The project has one dependency on an external library: `org.JSON`. This jar package needs to be installed using Maven before the code will compile.
-
-Since this Project uses RMI your machine must be able set up for that as well.
+The project uses `maven` so to build it on your system you will need maven installed. For inter process communication `gRPC` is used.
 
 This project has to be run with Docker and Docker compose which will recreate a coordinator and the specified number of server replicas.
 
@@ -22,7 +18,7 @@ docker compose up
 # Run: 'docker compose down' when you want to remove the resources created above 
 
 # Run client container
-docker run -it --rm --name client-con --network project3_default client-img java -jar /app/client.jar project3-server-3 5000
+docker run -it --rm --name client-con --network tpc_default client-img java -jar /app/client.jar tpc-server-3 5000
 
 # If the above command doesnt work (it didnt work for me on windows git bash) try this one
 # docker run -it --rm --name client-con --network project-net client-img java -jar //app//client.jar server-con 5000
@@ -40,19 +36,20 @@ If you want to change the number of replicas edit `compose.yaml` and rerun the c
 replicas : 5
 ```
 
+To change the ports that the servers run on you can also edit
 
-## Screenshots
+```Dockerfile
+coordinator:
+    ...
+    entrypoint: java -jar /app/server.jar c <coordinator port>
+    ports:
+        - "<coordinator port>:<coordinator port>"
+    ...
 
-### Server
-
-![Server](./img/Proj2_server.png)
-
-### Clients
-
-**Client 1:**
-
-![Client 1](./img/Proj2_client_1.png)
-
-**Client 2:**
-
-![Client 2](./img/Proj2_client_2.png)
+server:
+    ...
+    entrypoint: java -jar /app/server.jar coordinator <coordinator port> <server port>
+    ports:
+        - target: <server port>
+    ...
+```
