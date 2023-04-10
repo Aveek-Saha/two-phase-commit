@@ -1,11 +1,5 @@
-import org.json.JSONObject;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.ObjectOutputStream;
-import java.math.BigInteger;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
+import com.example.client.Request;
+import com.example.client.Response;
 
 /**
  * A class with some helper methods for processing user inputs and requests
@@ -17,7 +11,7 @@ class Client {
      * @param input the user input from the terminal
      * @return a JSON object format of the input data
      */
-    public static String formatInput(String input) {
+    public static Request formatInput(String input) {
 
         String[] inputs = input.split(" ", 3);
 
@@ -30,24 +24,22 @@ class Client {
         String method = inputs[0];
 
         // Validate method
-        if (!method.equalsIgnoreCase("GET")
-                && !method.equalsIgnoreCase("PUT")
-                && !method.equalsIgnoreCase("DEL")) {
+        if (!method.equalsIgnoreCase("GET") && !method.equalsIgnoreCase("PUT") &&
+                !method.equalsIgnoreCase("DEL")) {
             ClientLogger.logError("Invalid method. Valid methods are GET, PUT, or DELETE.");
             return null;
         }
 
         // Prepare request based on method
-        JSONObject request = new JSONObject();
-        if (method.equalsIgnoreCase("GET")
-                || method.equalsIgnoreCase("DEL")) {
+        Request.Builder request = Request.newBuilder();
+        if (method.equalsIgnoreCase("GET") || method.equalsIgnoreCase("DEL")) {
             if (inputs.length != 2) {
                 ClientLogger.logError("Incorrect syntax for " + method.toUpperCase());
                 return null;
             }
             String key = inputs[1];
-            request.put("method", method);
-            request.put("data", key);
+            request.setOperation(method);
+            request.setKey(key);
 
         } else {
             if (inputs.length != 3) {
@@ -57,29 +49,22 @@ class Client {
             String key = inputs[1];
             String value = inputs[2];
 
-            request.put("method", method);
-            request.put("data", new JSONObject().put(key, value));
+            request.setOperation(method);
+            request.setKey(key);
+            request.setValue(value);
         }
 
-        return request.toString();
+        return request.build();
     }
 
-    /**
-     * Generate a checksum for the received request using the SHA-256 algorithm
-     *
-     * @param object the JSON object to generate the checksum for
-     * @return A string hexadecimal checksum for the request
-     * @throws IOException              If an error occurs while writing the Obj output stream
-     * @throws NoSuchAlgorithmException Thrown if a crypto algorithm is requested but available
-     */
-    public static String getChecksum(Object object) throws IOException, NoSuchAlgorithmException {
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream(); ObjectOutputStream oos = new ObjectOutputStream(baos)) {
-            oos.writeObject(object);
+    public static void formatResponse(Response response) {
+        String status = response.getStatus();
+        String message = response.getMsg();
 
-            MessageDigest sha = MessageDigest.getInstance("SHA-256");
-            byte[] digestedArr = sha.digest(baos.toByteArray());
-            return new BigInteger(1, digestedArr).toString(16);
-
+        if (status.equalsIgnoreCase("400")) {
+            ClientLogger.logError(message);
+        } else {
+            ClientLogger.log(message);
         }
     }
 }

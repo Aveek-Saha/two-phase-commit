@@ -6,7 +6,8 @@ import java.util.Date;
  */
 class ClientLogger {
 
-    private static final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+    private static final SimpleDateFormat dateFormat =
+            new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
     private static final String ANSI_RESET = "\u001B[0m";
     private static final String ANSI_BOLD = "\u001B[1m";
     private static final String ANSI_GREEN = "\u001B[32m";
@@ -61,8 +62,9 @@ class ClientLogger {
         return ANSI_BOLD + message + ANSI_RESET;
     }
 
-    public static String logBuilder(String timestamp, String message, String level, String colourCode) {
-        return colourText(timestamp + " - " + boldText(level.toUpperCase() + ": "),
-                colourCode) + message;
+    public static String logBuilder(String timestamp, String message, String level,
+                                    String colourCode) {
+        return colourText(timestamp + " - " + boldText(level.toUpperCase() + ": "), colourCode) +
+                message;
     }
 }

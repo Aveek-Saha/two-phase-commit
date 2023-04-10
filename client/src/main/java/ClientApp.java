@@ -1,12 +1,13 @@
-import org.json.JSONException;
-import org.json.JSONObject;
+import com.example.client.Request;
+import com.example.client.Response;
+import com.example.client.ServiceGrpc;
+import com.example.client.ServiceGrpc.ServiceBlockingStub;
 
-import java.io.IOException;
-import java.rmi.RemoteException;
-import java.rmi.registry.LocateRegistry;
-import java.rmi.registry.Registry;
-import java.security.NoSuchAlgorithmException;
 import java.util.Scanner;
+
+import io.grpc.Grpc;
+import io.grpc.InsecureChannelCredentials;
+import io.grpc.ManagedChannel;
 
 /**
  * The main entrypoint for the client
@@ -15,8 +16,8 @@ public class ClientApp {
     /**
      * The starting point for the client.
      *
-     * @param args takes two arguments, the hostname/IP of the server, the port number to connect
-     *             to the server on.
+     * @param args takes two arguments, the hostname/IP of the server, the port number to connect to
+     *             the server on.
      */
     public static void main(String[] args) {
 
@@ -31,17 +32,18 @@ public class ClientApp {
 
 
         try {
-            String serverName = "Server-" + serverPort;
-            Registry registry = LocateRegistry.getRegistry(serverHost, serverPort);
-            ReplicaInterface stub = (ReplicaInterface) registry.lookup(serverName);
+            String server = serverHost + ":" + serverPort;
+            ManagedChannel serverChannel =
+                    Grpc.newChannelBuilder(server, InsecureChannelCredentials.create()).build();
+            ServiceBlockingStub serverStub = ServiceGrpc.newBlockingStub(serverChannel);
 
             ClientLogger.log("Starting client");
             System.out.println();
 
             ClientLogger.log("Pre-populating the KV store");
-//            prePopulateKVStore(stub);
+            prePopulateKVStore(serverStub);
             ClientLogger.log("Performing 5 of each type of operation on the KV store");
-//            performOperations(stub);
+            performOperations(serverStub);
 
             System.out.println();
             ClientLogger.log("Input format is: METHOD KEY [VALUE]");
@@ -58,45 +60,17 @@ public class ClientApp {
                     System.out.print("Enter command : ");
 
                     String input = scanner.nextLine().trim();
-                    String request = Client.formatInput(input);
+                    Request request = Client.formatInput(input);
                     if (request == null) {
                         continue;
                     }
                     ClientLogger.log("Request to server: " + request);
 
-                    // Generate the checksum for the request
-                    String checksum = null;
-                    try {
-                        checksum = Client.getChecksum(request);
-                    } catch (NoSuchAlgorithmException | IOException e) {
-                        ClientLogger.logError("Error generating checksum: " + e.getMessage());
-                    }
-
                     // Send the request to the server
-                    String resString = stub.generateResponse(request);
+                    Response response = serverStub.generateResponse(request);
 
-                    // Get the response from the server
-                    if (resString != null) {
-                        try {
-                            JSONObject response = new JSONObject(resString);
-                            String status = response.getString("status");
-                            String message = response.getString("message");
-                            String receivedChecksum = response.getString("checksum");
-
-                            // Log an error if the checksum does not match
-                            if (receivedChecksum.equals(checksum)) {
-                                if (status.equalsIgnoreCase("400")) {
-                                    ClientLogger.logError(message);
-                                } else {
-                                    ClientLogger.log(message);
-                                }
-                            } else {
-                                ClientLogger.logError("Un-requested response received, checksums do not match");
-                            }
-                        } catch (JSONException e) {
-                            ClientLogger.logError("Error parsing JSON: " + e.getMessage());
-                        }
-                    }
+                    // Format the response from the server
+                    Client.formatResponse(response);
 
                 }
             }
@@ -111,16 +85,13 @@ public class ClientApp {
      *
      * @param stub an instance of the remote interface
      */
-    private static void prePopulateKVStore(ReplicaInterface stub) {
+    private static void prePopulateKVStore(ServiceBlockingStub stub) {
         String[] commands = new String[]{"put hello world", "put create 123", "put dist systems",
                 "put name aveek", "put age 25", "put score 100", "put home work", "put lang java"};
 
         for (String command : commands) {
-            try {
-                stub.generateResponse(Client.formatInput(command));
-            } catch (RemoteException e) {
-                ClientLogger.logError("Client remote exception: " + e.getMessage());
-            }
+            Response response = stub.generateResponse(Client.formatInput(command));
+            Client.formatResponse(response);
         }
     }
 
@@ -129,38 +100,32 @@ public class ClientApp {
      *
      * @param stub an instance of the remote interface
      */
-    private static void performOperations(ReplicaInterface stub) {
-        String[] putCommands = new String[]{"put university neu", "put semester spring",
-                "put year 2024", "put course computer science", "put grade A+"};
+    private static void performOperations(ServiceBlockingStub stub) {
+        String[] putCommands =
+                new String[]{"put university neu", "put semester spring", "put year 2024",
+                        "put course computer science", "put grade A+"};
 
         for (String command : putCommands) {
-            try {
-                stub.generateResponse(Client.formatInput(command));
-            } catch (RemoteException e) {
-                ClientLogger.logError("Client remote exception: " + e.getMessage());
-            }
+            Response response = stub.generateResponse(Client.formatInput(command));
+            Client.formatResponse(response);
         }
 
-        String[] getCommands = new String[]{"get university", "get semester", "get year",
-                "get course", "get grade"};
+        String[] getCommands =
+                new String[]{"get university", "get semester", "get year", "get course",
+                        "get grade"};
 
         for (String command : getCommands) {
-            try {
-                stub.generateResponse(Client.formatInput(command));
-            } catch (RemoteException e) {
-                ClientLogger.logError("Client remote exception: " + e.getMessage());
-            }
+            Response response = stub.generateResponse(Client.formatInput(command));
+            Client.formatResponse(response);
         }
 
-        String[] delCommands = new String[]{"del university", "del semester", "del year",
-                "del course", "del grade"};
+        String[] delCommands =
+                new String[]{"del university", "del semester", "del year", "del course",
+                        "del grade"};
 
         for (String command : delCommands) {
-            try {
-                stub.generateResponse(Client.formatInput(command));
-            } catch (RemoteException e) {
-                ClientLogger.logError("Client remote exception: " + e.getMessage());
-            }
+            Response response = stub.generateResponse(Client.formatInput(command));
+            Client.formatResponse(response);
         }
     }
 }
