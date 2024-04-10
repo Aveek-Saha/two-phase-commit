@@ -14,7 +14,7 @@ public class ExceptionHandler implements ServerInterceptor {
         return new ExceptionHandlingServerCallListener<>(listener, serverCall, metadata);
     }
 
-    private class ExceptionHandlingServerCallListener<ReqT, RespT>
+    private static class ExceptionHandlingServerCallListener<ReqT, RespT>
             extends ForwardingServerCallListener.SimpleForwardingServerCallListener<ReqT> {
         private final ServerCall<ReqT, RespT> serverCall;
         private final Metadata metadata;
@@ -48,11 +48,7 @@ public class ExceptionHandler implements ServerInterceptor {
 
         private void handleException(RuntimeException exception, ServerCall<ReqT, RespT> serverCall,
                                      Metadata metadata) {
-            //if (exception instanceof IllegalArgumentException) {
             serverCall.close(Status.UNKNOWN.withDescription(exception.getMessage()), metadata);
-            //} else {
-            //    serverCall.close(Status.UNKNOWN, metadata);
-            //}
         }
     }
 }

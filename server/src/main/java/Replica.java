@@ -87,14 +87,8 @@ public class Replica {
          */
         @Override
         public void prepare(Request request, StreamObserver<Status> responseObserver) {
-            boolean success = false;
-            //if (lock.tryLock()) {
-                ServerLogger.logInfo("Acquired lock for prepare");
-                success = true;
-            //} else {
-            //    ServerLogger.logWarning("Could not acquire lock for prepare");
-            //}
-            responseObserver.onNext(Status.newBuilder().setSuccess(success).build());
+            ServerLogger.logInfo("Server prepared");
+            responseObserver.onNext(Status.newBuilder().setSuccess(true).build());
             responseObserver.onCompleted();
         }
 
@@ -106,37 +100,29 @@ public class Replica {
          */
         @Override
         public void commit(Request request, StreamObserver<Response> responseObserver) {
-            //try {
-                ServerLogger.logInfo("Received request from coordinator to commit: " +
-                        request.toString().replace("\n", " "));
+            ServerLogger.logInfo("Received request from coordinator to commit: " +
+                    request.toString().replace("\n", " "));
 
-                Response response;
-                String method = request.getOperation();
-                // Twp phase commit only required for put and delete since they modify the KV store
-                switch (method.toUpperCase()) {
-                    case "PUT":
-                        response = handlePut(request);
-                        break;
-                    case "DEL":
-                        response = handleDelete(request);
-                        break;
-                    default:
-                        response = Response.newBuilder().setStatus("400")
-                                .setMsg("Invalid commit request").build();
-                        break;
-                }
-                ServerLogger.logInfo("Sent response to coordinator for commit: " +
-                        request.toString().replace("\n", " "));
-                responseObserver.onNext(response);
-                responseObserver.onCompleted();
-            //} finally {
-            //    try {
-            //        lock.unlock();
-            //        ServerLogger.logInfo("Unlocked after commit");
-            //    } catch (IllegalMonitorStateException e) {
-            //        ServerLogger.logWarning("Could not unlock after commit: " + e.getMessage());
-            //    }
-            //}
+            Response response;
+            String method = request.getOperation();
+            // Twp phase commit only required for put and delete since they modify the KV store
+            switch (method.toUpperCase()) {
+                case "PUT":
+                    response = handlePut(request);
+                    break;
+                case "DEL":
+                    response = handleDelete(request);
+                    break;
+                default:
+                    response =
+                            Response.newBuilder().setStatus("400").setMsg("Invalid commit request")
+                                    .build();
+                    break;
+            }
+            ServerLogger.logInfo("Sent response to coordinator for commit: " +
+                    request.toString().replace("\n", " "));
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
         }
 
         /**
@@ -144,15 +130,8 @@ public class Replica {
          */
         @Override
         public void abort(Request request, StreamObserver<Status> responseObserver) {
-            boolean success = false;
-            //try {
-            //    lock.unlock();
-                ServerLogger.logInfo("Unlocked during abort");
-                success = true;
-            //} catch (IllegalMonitorStateException e) {
-            //    ServerLogger.logWarning("Could not unlock during abort: " + e.getMessage());
-            //}
-            responseObserver.onNext(Status.newBuilder().setSuccess(success).build());
+            ServerLogger.logInfo("Aborted transaction");
+            responseObserver.onNext(Status.newBuilder().setSuccess(true).build());
             responseObserver.onCompleted();
         }
 

@@ -17,7 +17,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import io.grpc.Grpc;
 import io.grpc.InsecureChannelCredentials;
@@ -35,10 +34,6 @@ public class Coordinator {
      * A constructor for the coordinator that initializes the list of replicas and other variables
      * required for managing those replicas
      */
-    //public Coordinator() throws IOException, InterruptedException {
-    //    //this.start(port);
-    //    //this.blockUntilShutdown();
-    //}
 
     private Server server;
 
@@ -116,8 +111,9 @@ public class Coordinator {
                     Grpc.newChannelBuilder(getReplica(replica), InsecureChannelCredentials.create())
                             .build();
             this.channels.put(replica, channel);
-            ManagedChannel heartbeatChannel = Grpc.newChannelBuilder(getReplica(replica),
-                    InsecureChannelCredentials.create()).build();
+            ManagedChannel heartbeatChannel =
+                    Grpc.newChannelBuilder(getReplica(replica), InsecureChannelCredentials.create())
+                            .build();
             this.heartbeatChannels.put(replica, heartbeatChannel);
             ServerLogger.log("Added new replica: " + clientName);
             this.startHeartbeat(replica);
@@ -150,15 +146,13 @@ public class Coordinator {
                     ServerLogger.logError("Failed to commit to all replicas");
                 }
             } else {
-                //if (this.abort(request)) {
-                //    message = "Operation failed. Transaction successfully aborted";
-                //    ServerLogger.log("Successfully aborted transaction");
-                //} else {
-                //    message = "Operation failed. Transaction could not be aborted";
-                //    ServerLogger.logError("Failed to abort transaction");
-                //}
-                message = "Operation failed. Could not prepare for transaction";
-                ServerLogger.logError("Failed to prepare transaction");
+                if (this.abort(request)) {
+                    message = "Operation failed. Transaction successfully aborted";
+                    ServerLogger.log("Successfully aborted transaction");
+                } else {
+                    message = "Operation failed. Transaction could not be aborted";
+                    ServerLogger.logError("Failed to abort transaction");
+                }
             }
 
             response = Response.newBuilder().setMsg(message).setStatus("400").build();
@@ -300,19 +294,18 @@ public class Coordinator {
                 List<Response> responses = new ArrayList<>();
                 for (Future<Response> future : futures) {
                     try {
-                    // Wait for task completion and check for exceptions
-                    Response response = future.get(ACK_TIMEOUT, TimeUnit.MILLISECONDS);
-                    if (response == null) {
-                        return null;
-                    }
-                    responses.add(response);
+                        // Wait for task completion and check for exceptions
+                        Response response = future.get(ACK_TIMEOUT, TimeUnit.MILLISECONDS);
+                        if (response == null) {
+                            return null;
+                        }
+                        responses.add(response);
                     } catch (ExecutionException e) {
                         ServerLogger.logError("Error committing: " + e.getCause());
                         return null;
                     } catch (Exception e) {
                         // Handle exception (e.g., task failed)
-                        ServerLogger.logError("Could not send commit requests: " + e.getMessage
-                        ());
+                        ServerLogger.logError("Could not send commit requests: " + e.getMessage());
                         return null;
                     }
                 }
