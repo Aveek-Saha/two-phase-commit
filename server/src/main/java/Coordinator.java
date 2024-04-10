@@ -17,6 +17,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import io.grpc.Grpc;
 import io.grpc.InsecureChannelCredentials;
@@ -43,21 +44,19 @@ public class Coordinator {
 
     public void start(int port) throws IOException {
         server = Grpc.newServerBuilderForPort(port, InsecureServerCredentials.create())
-                .addService(new CoordinatorService()).build().start();
+                .addService(new CoordinatorService()).intercept(new ExceptionHandler()).build()
+                .start();
         ServerLogger.log("Server started, listening on " + port);
-        Runtime.getRuntime().addShutdownHook(new Thread() {
-            @Override
-            public void run() {
-                // Use stderr here since the logger may have been reset by its JVM shutdown hook.
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            // Use stderr here since the logger may have been reset by its JVM shutdown hook.
+            ServerLogger.logError("Shutting down gRPC server since JVM is shutting down");
+            try {
+                Coordinator.this.stop();
+            } catch (InterruptedException e) {
                 ServerLogger.logError("Shutting down gRPC server since JVM is shutting down");
-                try {
-                    Coordinator.this.stop();
-                } catch (InterruptedException e) {
-                    ServerLogger.logError("Shutting down gRPC server since JVM is shutting down");
-                }
-                ServerLogger.logError("Server shut down");
             }
-        });
+            ServerLogger.logError("Server shut down");
+        }));
     }
 
     private void stop() throws InterruptedException {
@@ -117,12 +116,12 @@ public class Coordinator {
                     Grpc.newChannelBuilder(getReplica(replica), InsecureChannelCredentials.create())
                             .build();
             this.channels.put(replica, channel);
-            //ManagedChannel heartbeatChannel = Grpc.newChannelBuilder(getReplica(replica),
-            //        InsecureChannelCredentials.create()).build();
-            //this.heartbeatChannels.put(replica, heartbeatChannel);
+            ManagedChannel heartbeatChannel = Grpc.newChannelBuilder(getReplica(replica),
+                    InsecureChannelCredentials.create()).build();
+            this.heartbeatChannels.put(replica, heartbeatChannel);
             ServerLogger.log("Added new replica: " + clientName);
-            //this.startHeartbeat(replica);
-            //ServerLogger.logInfo("Started heartbeat on replica: " + clientName);
+            this.startHeartbeat(replica);
+            ServerLogger.logInfo("Started heartbeat on replica: " + clientName);
 
             responseObserver.onNext(Status.newBuilder().setSuccess(true).build());
             responseObserver.onCompleted();
@@ -151,13 +150,15 @@ public class Coordinator {
                     ServerLogger.logError("Failed to commit to all replicas");
                 }
             } else {
-                if (this.abort(request)) {
-                    message = "Operation failed. Transaction successfully aborted";
-                    ServerLogger.log("Successfully aborted transaction");
-                } else {
-                    message = "Operation failed. Transaction could not be aborted";
-                    ServerLogger.logError("Failed to abort transaction");
-                }
+                //if (this.abort(request)) {
+                //    message = "Operation failed. Transaction successfully aborted";
+                //    ServerLogger.log("Successfully aborted transaction");
+                //} else {
+                //    message = "Operation failed. Transaction could not be aborted";
+                //    ServerLogger.logError("Failed to abort transaction");
+                //}
+                message = "Operation failed. Could not prepare for transaction";
+                ServerLogger.logError("Failed to prepare transaction");
             }
 
             response = Response.newBuilder().setMsg(message).setStatus("400").build();
@@ -257,7 +258,7 @@ public class Coordinator {
                             return false;
                         }
                     } catch (ExecutionException e) {
-                        ServerLogger.logError("Error committing: " + e.getCause());
+                        ServerLogger.logError("Error preparing: " + e.getCause());
                         return false;
                     } catch (Exception e) {
                         // Handle exception (e.g., task failed)
@@ -299,18 +300,19 @@ public class Coordinator {
                 List<Response> responses = new ArrayList<>();
                 for (Future<Response> future : futures) {
                     try {
-                        // Wait for task completion and check for exceptions
-                        Response response = future.get(ACK_TIMEOUT, TimeUnit.MILLISECONDS);
-                        if (response == null) {
-                            return null;
-                        }
-                        responses.add(response);
+                    // Wait for task completion and check for exceptions
+                    Response response = future.get(ACK_TIMEOUT, TimeUnit.MILLISECONDS);
+                    if (response == null) {
+                        return null;
+                    }
+                    responses.add(response);
                     } catch (ExecutionException e) {
                         ServerLogger.logError("Error committing: " + e.getCause());
                         return null;
                     } catch (Exception e) {
                         // Handle exception (e.g., task failed)
-                        ServerLogger.logError("Could not send commit requests: " + e.getMessage());
+                        ServerLogger.logError("Could not send commit requests: " + e.getMessage
+                        ());
                         return null;
                     }
                 }

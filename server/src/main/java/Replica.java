@@ -28,7 +28,8 @@ public class Replica {
 
     public void start(String coordinator, int port) throws IOException {
         server = Grpc.newServerBuilderForPort(port, InsecureServerCredentials.create())
-                .addService(new ReplicaService(coordinator)).build().start();
+                .addService(new ReplicaService(coordinator)).intercept(new ExceptionHandler())
+                .build().start();
         ServerLogger.log("Server started, listening on " + port);
 
         ManagedChannel coordinatorChannel =
@@ -87,12 +88,12 @@ public class Replica {
         @Override
         public void prepare(Request request, StreamObserver<Status> responseObserver) {
             boolean success = false;
-            if (this.lock.tryLock()) {
+            //if (lock.tryLock()) {
                 ServerLogger.logInfo("Acquired lock for prepare");
                 success = true;
-            } else {
-                ServerLogger.logWarning("Could not acquire lock for prepare");
-            }
+            //} else {
+            //    ServerLogger.logWarning("Could not acquire lock for prepare");
+            //}
             responseObserver.onNext(Status.newBuilder().setSuccess(success).build());
             responseObserver.onCompleted();
         }
@@ -105,7 +106,7 @@ public class Replica {
          */
         @Override
         public void commit(Request request, StreamObserver<Response> responseObserver) {
-            try {
+            //try {
                 ServerLogger.logInfo("Received request from coordinator to commit: " +
                         request.toString().replace("\n", " "));
 
@@ -128,14 +129,14 @@ public class Replica {
                         request.toString().replace("\n", " "));
                 responseObserver.onNext(response);
                 responseObserver.onCompleted();
-            } finally {
-                try {
-                    this.lock.unlock();
-                    ServerLogger.logInfo("Unlocked after commit");
-                } catch (IllegalMonitorStateException e) {
-                    ServerLogger.logWarning("Could not unlock after commit: " + e.getMessage());
-                }
-            }
+            //} finally {
+            //    try {
+            //        lock.unlock();
+            //        ServerLogger.logInfo("Unlocked after commit");
+            //    } catch (IllegalMonitorStateException e) {
+            //        ServerLogger.logWarning("Could not unlock after commit: " + e.getMessage());
+            //    }
+            //}
         }
 
         /**
@@ -144,13 +145,13 @@ public class Replica {
         @Override
         public void abort(Request request, StreamObserver<Status> responseObserver) {
             boolean success = false;
-            try {
-                this.lock.unlock();
+            //try {
+            //    lock.unlock();
                 ServerLogger.logInfo("Unlocked during abort");
                 success = true;
-            } catch (IllegalMonitorStateException e) {
-                ServerLogger.logWarning("Could not unlock during abort: " + e.getMessage());
-            }
+            //} catch (IllegalMonitorStateException e) {
+            //    ServerLogger.logWarning("Could not unlock during abort: " + e.getMessage());
+            //}
             responseObserver.onNext(Status.newBuilder().setSuccess(success).build());
             responseObserver.onCompleted();
         }
@@ -236,29 +237,23 @@ public class Replica {
          * @param data the data to insert
          * @return the response message after the commit was completed
          */
-        private Response handlePut(Request data) {
-            this.lock.lock();
-            try {
-                String key = data.getKey();
-                String value = data.getValue();
-                String message;
-                String status;
+        private synchronized Response handlePut(Request data) {
+            String key = data.getKey();
+            String value = data.getValue();
+            String message;
+            String status;
 
-                // Return a success if the key was successfully put into the KV store
-                if (kvs.put(key, value)) {
-                    ServerLogger.log(
-                            "Successful PUT on key '" + key + "' with value '" + value + "'");
-                    message = "Put key '" + key + "' with value '" + value + "'";
-                    status = "200";
-                } else {
-                    ServerLogger.logError("Could not PUT key '" + key + "'");
-                    message = "PUT FAILED for key '" + key + "' with value '" + value + "'";
-                    status = "400";
-                }
-                return Response.newBuilder().setStatus(status).setMsg(message).build();
-            } finally {
-                this.lock.unlock();
+            // Return a success if the key was successfully put into the KV store
+            if (kvs.put(key, value)) {
+                ServerLogger.log("Successful PUT on key '" + key + "' with value '" + value + "'");
+                message = "Put key '" + key + "' with value '" + value + "'";
+                status = "200";
+            } else {
+                ServerLogger.logError("Could not PUT key '" + key + "'");
+                message = "PUT FAILED for key '" + key + "' with value '" + value + "'";
+                status = "400";
             }
+            return Response.newBuilder().setStatus(status).setMsg(message).build();
         }
 
         /**
@@ -267,27 +262,22 @@ public class Replica {
          * @param data the data to delete from the KV store
          * @return the message to return to the client along with any data as a JSON string
          */
-        private Response handleDelete(Request data) {
-            this.lock.lock();
-            try {
-                String key = data.getKey();
-                String message;
-                String status;
+        private synchronized Response handleDelete(Request data) {
+            String key = data.getKey();
+            String message;
+            String status;
 
-                // If the key exists and was deleted successfully return a success
-                if (kvs.delete(key)) {
-                    ServerLogger.log("Successful DEL on key '" + key + "'");
-                    message = "Deleted key '" + key + "'";
-                    status = "200";
-                } else {
-                    ServerLogger.logError("Could not DEL key '" + key + "'");
-                    message = "DEL FAILED for key '" + key + "'";
-                    status = "400";
-                }
-                return Response.newBuilder().setStatus(status).setMsg(message).build();
-            } finally {
-                this.lock.unlock();
+            // If the key exists and was deleted successfully return a success
+            if (kvs.delete(key)) {
+                ServerLogger.log("Successful DEL on key '" + key + "'");
+                message = "Deleted key '" + key + "'";
+                status = "200";
+            } else {
+                ServerLogger.logError("Could not DEL key '" + key + "'");
+                message = "DEL FAILED for key '" + key + "'";
+                status = "400";
             }
+            return Response.newBuilder().setStatus(status).setMsg(message).build();
         }
     }
 }

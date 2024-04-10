@@ -1,17 +1,17 @@
-import java.util.HashMap;
-import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * A class for creating and performing operations on a Key Value Store.
  */
 class KeyValue {
-    public Map<String, String> KVStore;
+    public ConcurrentMap<String, String> KVStore;
 
     /**
      * Create a new KV store in the form of a hashmap.
      */
     public KeyValue() {
-        KVStore = new HashMap<>();
+        KVStore = new ConcurrentHashMap<>();
     }
 
     /**
