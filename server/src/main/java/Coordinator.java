@@ -3,6 +3,7 @@ import com.example.server.ReplicaServer;
 import com.example.server.Request;
 import com.example.server.Response;
 import com.example.server.ServiceGrpc;
+import com.example.server.ServiceGrpc.ServiceBlockingStub;
 import com.example.server.Status;
 
 import java.io.IOException;
@@ -81,7 +82,9 @@ public class Coordinator {
         private final ScheduledExecutorService scheduler;
         private final ConcurrentHashMap<ReplicaServer, ScheduledFuture<?>> heartbeats;
         private final ConcurrentHashMap<ReplicaServer, ManagedChannel> channels;
+        private final ConcurrentHashMap<ReplicaServer, ServiceBlockingStub> replicaStubs;
         private final ConcurrentHashMap<ReplicaServer, ManagedChannel> heartbeatChannels;
+        private final ConcurrentHashMap<ReplicaServer, ServiceBlockingStub> heartbeatStubs;
         private final long ACK_TIMEOUT = 5000;
         private final int maxRetries = 3;
         private final long initialDelayMillis = 1000; // Initial delay in milliseconds
@@ -93,7 +96,9 @@ public class Coordinator {
             this.scheduler = Executors.newScheduledThreadPool(5);
             this.heartbeats = new ConcurrentHashMap<>();
             this.channels = new ConcurrentHashMap<>();
+            this.replicaStubs = new ConcurrentHashMap<>();
             this.heartbeatChannels = new ConcurrentHashMap<>();
+            this.heartbeatStubs = new ConcurrentHashMap<>();
         }
 
         /**
@@ -111,10 +116,12 @@ public class Coordinator {
                     Grpc.newChannelBuilder(getReplica(replica), InsecureChannelCredentials.create())
                             .build();
             this.channels.put(replica, channel);
+            this.replicaStubs.put(replica, ServiceGrpc.newBlockingStub(channel));
             ManagedChannel heartbeatChannel =
                     Grpc.newChannelBuilder(getReplica(replica), InsecureChannelCredentials.create())
                             .build();
             this.heartbeatChannels.put(replica, heartbeatChannel);
+            this.heartbeatStubs.put(replica, ServiceGrpc.newBlockingStub(heartbeatChannel));
             ServerLogger.log("Added new replica: " + clientName);
             this.startHeartbeat(replica);
             ServerLogger.logInfo("Started heartbeat on replica: " + clientName);
@@ -169,11 +176,10 @@ public class Coordinator {
         public void startHeartbeat(ReplicaServer replica) {
             Runnable heartbeatTask = () -> {
                 String replicaHost = replica.getHostname();
-                ManagedChannel channel = this.heartbeatChannels.get(replica);
                 for (int attempt = 1; attempt <= maxRetries; attempt++) {
                     try {
                         Ping ping = Ping.newBuilder().build();
-                        Status res = ServiceGrpc.newBlockingStub(channel).isAlive(ping);
+                        Status res = this.heartbeatStubs.get(replica).isAlive(ping);
                         if (res.getSuccess()) {
                             return;
                         } else {
@@ -211,6 +217,8 @@ public class Coordinator {
 
             if (!future.isDone()) {
                 this.replicas.remove(replica);
+                this.heartbeatStubs.remove(replica);
+                this.replicaStubs.remove(replica);
                 ManagedChannel channel = this.channels.remove(replica);
                 channel.shutdownNow();
                 ManagedChannel heartbeatChannel = this.heartbeatChannels.remove(replica);
@@ -234,8 +242,8 @@ public class Coordinator {
             ServerLogger.logInfo("Add prepare tasks for all replicas");
             for (ReplicaServer replica : this.replicas) {
                 prepareTasks.add(() -> {
-                    ManagedChannel channel = this.channels.get(replica);
-                    Status res = ServiceGrpc.newBlockingStub(channel).prepare(request);
+                    ServiceBlockingStub stub = this.replicaStubs.get(replica);
+                    Status res = stub.prepare(request);
                     return res.getSuccess();
                 });
             }
@@ -282,8 +290,8 @@ public class Coordinator {
 
             for (ReplicaServer replica : this.replicas) {
                 commitTasks.add(() -> {
-                    ManagedChannel channel = this.channels.get(replica);
-                    return ServiceGrpc.newBlockingStub(channel).commit(request);
+                    ServiceBlockingStub stub = this.replicaStubs.get(replica);
+                    return stub.commit(request);
                 });
             }
 
@@ -339,8 +347,8 @@ public class Coordinator {
             ServerLogger.logWarning("Add abort tasks for all replicas");
             for (ReplicaServer replica : this.replicas) {
                 abortTasks.add(() -> {
-                    ManagedChannel channel = this.channels.get(replica);
-                    Status res = ServiceGrpc.newBlockingStub(channel).abort(request);
+                    ServiceBlockingStub stub = this.replicaStubs.get(replica);
+                    Status res = stub.abort(request);
                     return res.getSuccess();
                 });
             }
