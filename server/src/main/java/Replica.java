@@ -8,8 +8,6 @@ import com.example.server.Status;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 import io.grpc.Grpc;
 import io.grpc.InsecureChannelCredentials;
@@ -70,13 +68,11 @@ public class Replica {
     }
 
     public class ReplicaService extends ServiceGrpc.ServiceImplBase {
-        private final Lock lock;
         KeyValue kvs;
         String coordinator;
 
         ReplicaService(String coordinator) {
             kvs = new KeyValue();
-            lock = new ReentrantLock();
             this.coordinator = coordinator;
         }
 
@@ -156,10 +152,9 @@ public class Replica {
         @Override
         public void generateResponse(Request request, StreamObserver<Response> responseObserver) {
             Response response;
-            String clientName = "unknown";
 
-            ServerLogger.log("Received request from " + clientName + ": " +
-                    request.toString().replace("\n", " "));
+            ServerLogger.log(
+                    "Received request from client: " + request.toString().replace("\n", " "));
 
             // Process request
             String method = request.getOperation();
@@ -179,8 +174,7 @@ public class Replica {
                             .setStatus("400").build();
                     break;
             }
-            ServerLogger.log("Sent response to " + clientName + ": " +
-                    response.toString().replace("\n", " "));
+            ServerLogger.log("Sent response to client: " + response.toString().replace("\n", " "));
 
             responseObserver.onNext(response);
             responseObserver.onCompleted();
@@ -216,7 +210,7 @@ public class Replica {
          * @param data the data to insert
          * @return the response message after the commit was completed
          */
-        private synchronized Response handlePut(Request data) {
+        private Response handlePut(Request data) {
             String key = data.getKey();
             String value = data.getValue();
             String message;
@@ -241,7 +235,7 @@ public class Replica {
          * @param data the data to delete from the KV store
          * @return the message to return to the client along with any data as a JSON string
          */
-        private synchronized Response handleDelete(Request data) {
+        private Response handleDelete(Request data) {
             String key = data.getKey();
             String message;
             String status;

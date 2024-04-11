@@ -23,4 +23,4 @@ services:
             - target: 5001
         deploy: 
           mode: replicated
-          replicas : 3
+          replicas : 5
