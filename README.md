@@ -4,7 +4,7 @@ This project is an implementation of the two phase commit protocol in a distribu
 
 The server can be replicated to any number of instances and the data in the Key Value store will remain consistent across replicas.
 
-The server has specifications as follows:
+The system has specifications as follows:
 - Three types of operations should be performed on the server with the following parameters:
     - PUT (key, value) 
     - GET (key) 
@@ -14,6 +14,8 @@ The server has specifications as follows:
 - The two phase commit protocol is used to maintain consistency across these replicas
 - The Coordinator handles timeouts in the case of unresponsive servers
 
+
+The client package has a benchmark which executes 100 of each type of request in parallel and also contains an example of usage.
 
 ## Running instructions
 
@@ -34,10 +36,12 @@ docker compose up
 docker build -f client.Dockerfile -t client-img --target client-build .
 
 # Run client container
-docker run -it --rm --name client-con --network project3_default client-img java -jar /app/client.jar project3-server-3 5001
+docker run -it --rm --name client-con --network project3_default client-img java \
+-jar /app/client.jar project3-server-3 5001
 
 # If the above command doesnt work (it didn't work for me on windows git bash) try this one
-# docker run -it --rm --name client-con --network project-net client-img java -jar //app//client.jar server-con 5001
+# docker run -it --rm --name client-con --network project-net client-img \
+# java -jar //app//client.jar server-con 5001
 ```
 
 Since I'm using a windows system I haven't tested the bash scripts, but I have modified them to reflect the steps above
@@ -74,7 +78,8 @@ server:
 If for some reason you are unable to get Docker compose working, Docker can be used along with the shell scripts. However it is more inconvenient to set up and manage so Docker compose is still the recommended way.
 
 ```sh
-# This script will build and start the coordinators and servers and then display logs from the coordinator
+# This script will build and start the coordinators and servers and 
+# then display logs from the coordinator
 ./deploy.sh
 
 # To view logs from any of the 5 servers
