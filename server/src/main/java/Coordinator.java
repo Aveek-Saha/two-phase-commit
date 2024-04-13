@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -77,7 +78,7 @@ public class Coordinator {
     public String getReplica(ReplicaServer replica) {
         String replicaHost = replica.getHostname();
         int replicaPort = replica.getPort();
-        return replicaHost + replicaPort;
+        return replicaHost + ":" + replicaPort;
     }
 
     private class CoordinatorService extends ServiceGrpc.ServiceImplBase {
@@ -85,6 +86,8 @@ public class Coordinator {
         private final ExecutorService executor;
         private final ScheduledExecutorService scheduler;
         private final ConcurrentHashMap<ReplicaServer, ScheduledFuture<?>> heartbeats;
+        private final ConcurrentHashMap<ReplicaServer, ManagedChannel> channels;
+        private final ConcurrentHashMap<ReplicaServer, ManagedChannel> heartbeatChannels;
         private final long ACK_TIMEOUT = 5000;
         private final int maxRetries = 3;
         private final long initialDelayMillis = 1000; // Initial delay in milliseconds
@@ -95,6 +98,8 @@ public class Coordinator {
             this.executor = Executors.newCachedThreadPool();
             this.scheduler = Executors.newScheduledThreadPool(5);
             this.heartbeats = new ConcurrentHashMap<>();
+            this.channels = new ConcurrentHashMap<>();
+            this.heartbeatChannels = new ConcurrentHashMap<>();
         }
 
         /**
@@ -108,9 +113,15 @@ public class Coordinator {
             this.replicas.add(replica);
             String clientName = replica.getHostname();
 
+            ManagedChannel channel = Grpc.newChannelBuilder(getReplica(replica),
+                    InsecureChannelCredentials.create()).build();
+            this.channels.put(replica, channel);
+            //ManagedChannel heartbeatChannel = Grpc.newChannelBuilder(getReplica(replica),
+            //        InsecureChannelCredentials.create()).build();
+            //this.heartbeatChannels.put(replica, heartbeatChannel);
             ServerLogger.log("Added new replica: " + clientName);
-            this.startHeartbeat(replica);
-            ServerLogger.logInfo("Started heartbeat on replica: " + clientName);
+            //this.startHeartbeat(replica);
+            //ServerLogger.logInfo("Started heartbeat on replica: " + clientName);
 
             responseObserver.onNext(Status.newBuilder().setSuccess(true).build());
             responseObserver.onCompleted();
@@ -132,6 +143,7 @@ public class Coordinator {
                 if (commitResult != null) {
                     ServerLogger.log("Successfully committed to all replicas");
                     responseObserver.onNext(commitResult);
+                    responseObserver.onCompleted();
                     return;
                 } else {
                     message = "Operation failed. Could not commit transaction to all replicas";
@@ -161,8 +173,7 @@ public class Coordinator {
         public void startHeartbeat(ReplicaServer replica) {
             Runnable heartbeatTask = () -> {
                 String replicaHost = replica.getHostname();
-                ManagedChannel channel = Grpc.newChannelBuilder(getReplica(replica),
-                        InsecureChannelCredentials.create()).build();
+                ManagedChannel channel = this.heartbeatChannels.get(replica);
                 for (int attempt = 1; attempt <= maxRetries; attempt++) {
                     try {
                         Ping ping = Ping.newBuilder().build();
@@ -204,6 +215,10 @@ public class Coordinator {
 
             if (!future.isDone()) {
                 this.replicas.remove(replica);
+                ManagedChannel channel = this.channels.remove(replica);
+                channel.shutdownNow();
+                ManagedChannel heartbeatChannel = this.heartbeatChannels.remove(replica);
+                heartbeatChannel.shutdownNow();
                 String clientName = replica.getHostname();
                 this.scheduler.schedule(() -> future.cancel(true), 0, TimeUnit.MILLISECONDS);
                 ServerLogger.log("Removed unresponsive replica '" + clientName + "' and stopped " +
@@ -223,8 +238,7 @@ public class Coordinator {
             ServerLogger.logInfo("Add prepare tasks for all replicas");
             for (ReplicaServer replica : this.replicas) {
                 prepareTasks.add(() -> {
-                    ManagedChannel channel = Grpc.newChannelBuilder(getReplica(replica),
-                            InsecureChannelCredentials.create()).build();
+                    ManagedChannel channel = this.channels.get(replica);
                     Status res = ServiceGrpc.newBlockingStub(channel).prepare(request);
                     return res.getSuccess();
                 });
@@ -241,6 +255,9 @@ public class Coordinator {
                         if (!result) {
                             return false;
                         }
+                    } catch (ExecutionException e) {
+                        ServerLogger.logError("Error committing: " + e.getCause());
+                        return false;
                     } catch (Exception e) {
                         // Handle exception (e.g., task failed)
                         ServerLogger.logError("Could not send prepare requests: " + e.getMessage());
@@ -269,8 +286,7 @@ public class Coordinator {
 
             for (ReplicaServer replica : this.replicas) {
                 commitTasks.add(() -> {
-                    ManagedChannel channel = Grpc.newChannelBuilder(getReplica(replica),
-                            InsecureChannelCredentials.create()).build();
+                    ManagedChannel channel = this.channels.get(replica);
                     return ServiceGrpc.newBlockingStub(channel).commit(request);
                 });
             }
@@ -288,6 +304,9 @@ public class Coordinator {
                             return null;
                         }
                         responses.add(response);
+                    } catch (ExecutionException e) {
+                        ServerLogger.logError("Error committing: " + e.getCause());
+                        return null;
                     } catch (Exception e) {
                         // Handle exception (e.g., task failed)
                         ServerLogger.logError("Could not send commit requests: " + e.getMessage());
@@ -324,8 +343,7 @@ public class Coordinator {
             ServerLogger.logWarning("Add abort tasks for all replicas");
             for (ReplicaServer replica : this.replicas) {
                 abortTasks.add(() -> {
-                    ManagedChannel channel = Grpc.newChannelBuilder(getReplica(replica),
-                            InsecureChannelCredentials.create()).build();
+                    ManagedChannel channel = this.channels.get(replica);
                     Status res = ServiceGrpc.newBlockingStub(channel).abort(request);
                     return res.getSuccess();
                 });
@@ -341,6 +359,9 @@ public class Coordinator {
                         if (!result) {
                             return false;
                         }
+                    } catch (ExecutionException e) {
+                        ServerLogger.logError("Error committing: " + e.getCause());
+                        return false;
                     } catch (Exception e) {
                         // Handle exception (e.g., task failed)
                         ServerLogger.logError("Could not send abort requests: " + e.getMessage());

@@ -7,6 +7,7 @@ import com.example.server.Status;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -41,19 +42,16 @@ public class Replica {
         if (response.getSuccess()) ServerLogger.log("Connected to coordinator");
         else ServerLogger.logError("Failed to connect to coordinator");
 
-        Runtime.getRuntime().addShutdownHook(new Thread() {
-            @Override
-            public void run() {
-                // Use stderr here since the logger may have been reset by its JVM shutdown hook.
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            // Use stderr here since the logger may have been reset by its JVM shutdown hook.
+            ServerLogger.logError("Shutting down gRPC server since JVM is shutting down");
+            try {
+                Replica.this.stop();
+            } catch (InterruptedException e) {
                 ServerLogger.logError("Shutting down gRPC server since JVM is shutting down");
-                try {
-                    Replica.this.stop();
-                } catch (InterruptedException e) {
-                    ServerLogger.logError("Shutting down gRPC server since JVM is shutting down");
-                }
-                ServerLogger.logError("Server shut down");
             }
-        });
+            ServerLogger.logError("Server shut down");
+        }));
     }
 
     private void stop() throws InterruptedException {
@@ -97,7 +95,7 @@ public class Replica {
                 ServerLogger.logWarning("Could not acquire lock for prepare");
             }
             responseObserver.onNext(Status.newBuilder().setSuccess(success).build());
-
+            responseObserver.onCompleted();
         }
 
         /**
@@ -110,7 +108,7 @@ public class Replica {
         public void commit(Request request, StreamObserver<Response> responseObserver) {
             try {
                 ServerLogger.logInfo(
-                        "Received request from coordinator to commit: " + request.toString());
+                        "Received request from coordinator to commit: " + request.toString().replace("\n", " "));
 
                 Response response;
                 String method = request.getOperation();
@@ -128,8 +126,9 @@ public class Replica {
                         break;
                 }
                 ServerLogger.logInfo(
-                        "Sent response to coordinator for commit: " + request);
+                        "Sent response to coordinator for commit: " + request.toString().replace("\n", " "));
                 responseObserver.onNext(response);
+                responseObserver.onCompleted();
             } finally {
                 try {
                     this.lock.unlock();
@@ -154,6 +153,7 @@ public class Replica {
                 ServerLogger.logWarning("Could not unlock during abort: " + e.getMessage());
             }
             responseObserver.onNext(Status.newBuilder().setSuccess(success).build());
+            responseObserver.onCompleted();
         }
 
         /**
@@ -165,6 +165,7 @@ public class Replica {
         @Override
         public void isAlive(Ping ping, StreamObserver<Status> responseObserver) {
             responseObserver.onNext(Status.newBuilder().setSuccess(true).build());
+            responseObserver.onCompleted();
         }
 
         /**
@@ -178,7 +179,7 @@ public class Replica {
             Response response;
             String clientName = "unknown";
 
-            ServerLogger.log("Received request from " + clientName + ": " + request);
+            ServerLogger.log("Received request from " + clientName + ": " + request.toString().replace("\n", " "));
 
             // Process request
             String method = request.getOperation();
@@ -198,7 +199,7 @@ public class Replica {
                             .setStatus("400").build();
                     break;
             }
-            ServerLogger.log("Sent response to " + clientName + ": " + response);
+            ServerLogger.log("Sent response to " + clientName + ": " + response.toString().replace("\n", " "));
 
             responseObserver.onNext(response);
             responseObserver.onCompleted();

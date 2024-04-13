@@ -1,7 +1,7 @@
-import com.example.client.Request;
-import com.example.client.Response;
-import com.example.client.ServiceGrpc;
-import com.example.client.ServiceGrpc.ServiceBlockingStub;
+import com.example.server.Request;
+import com.example.server.Response;
+import com.example.server.ServiceGrpc;
+import com.example.server.ServiceGrpc.ServiceBlockingStub;
 
 import java.util.Scanner;
 
@@ -42,6 +42,8 @@ public class ClientApp {
 
             ClientLogger.log("Pre-populating the KV store");
             prePopulateKVStore(serverStub);
+
+            System.out.println();
             ClientLogger.log("Performing 5 of each type of operation on the KV store");
             performOperations(serverStub);
 

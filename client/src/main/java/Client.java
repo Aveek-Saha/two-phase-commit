@@ -1,5 +1,5 @@
-import com.example.client.Request;
-import com.example.client.Response;
+import com.example.server.Request;
+import com.example.server.Response;
 
 /**
  * A class with some helper methods for processing user inputs and requests

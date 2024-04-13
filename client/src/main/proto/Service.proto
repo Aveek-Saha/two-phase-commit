@@ -1,8 +1,8 @@
 syntax = "proto3";
-package client;
+package server;
 
 option java_multiple_files = true;
-option java_package = "com.example.client";
+option java_package = "com.example.server";
 option java_outer_classname = "ServiceProto";
 
 service Service {
