@@ -113,8 +113,9 @@ public class Coordinator {
             this.replicas.add(replica);
             String clientName = replica.getHostname();
 
-            ManagedChannel channel = Grpc.newChannelBuilder(getReplica(replica),
-                    InsecureChannelCredentials.create()).build();
+            ManagedChannel channel =
+                    Grpc.newChannelBuilder(getReplica(replica), InsecureChannelCredentials.create())
+                            .build();
             this.channels.put(replica, channel);
             //ManagedChannel heartbeatChannel = Grpc.newChannelBuilder(getReplica(replica),
             //        InsecureChannelCredentials.create()).build();

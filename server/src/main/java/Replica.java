@@ -7,7 +7,6 @@ import com.example.server.Status;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -107,8 +106,8 @@ public class Replica {
         @Override
         public void commit(Request request, StreamObserver<Response> responseObserver) {
             try {
-                ServerLogger.logInfo(
-                        "Received request from coordinator to commit: " + request.toString().replace("\n", " "));
+                ServerLogger.logInfo("Received request from coordinator to commit: " +
+                        request.toString().replace("\n", " "));
 
                 Response response;
                 String method = request.getOperation();
@@ -125,8 +124,8 @@ public class Replica {
                                 .setMsg("Invalid commit request").build();
                         break;
                 }
-                ServerLogger.logInfo(
-                        "Sent response to coordinator for commit: " + request.toString().replace("\n", " "));
+                ServerLogger.logInfo("Sent response to coordinator for commit: " +
+                        request.toString().replace("\n", " "));
                 responseObserver.onNext(response);
                 responseObserver.onCompleted();
             } finally {
@@ -179,7 +178,8 @@ public class Replica {
             Response response;
             String clientName = "unknown";
 
-            ServerLogger.log("Received request from " + clientName + ": " + request.toString().replace("\n", " "));
+            ServerLogger.log("Received request from " + clientName + ": " +
+                    request.toString().replace("\n", " "));
 
             // Process request
             String method = request.getOperation();
@@ -199,7 +199,8 @@ public class Replica {
                             .setStatus("400").build();
                     break;
             }
-            ServerLogger.log("Sent response to " + clientName + ": " + response.toString().replace("\n", " "));
+            ServerLogger.log("Sent response to " + clientName + ": " +
+                    response.toString().replace("\n", " "));
 
             responseObserver.onNext(response);
             responseObserver.onCompleted();
